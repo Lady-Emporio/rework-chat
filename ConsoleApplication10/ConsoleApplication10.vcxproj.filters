@@ -1,0 +1,63 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Исходные файлы">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Файлы заголовков">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Файлы ресурсов">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Managers">
+      <UniqueIdentifier>{ae5a637d-70bf-47ab-86c4-69314ebba07b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Managers\ManagerOnline">
+      <UniqueIdentifier>{4e537fb6-81d2-43c4-a670-2ca0aea3e47b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sky">
+      <UniqueIdentifier>{c34efbf9-b0c6-401a-8f83-56494853097a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Managers\User">
+      <UniqueIdentifier>{e61aa444-827f-4f85-89d9-217aa1fdd329}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Server">
+      <UniqueIdentifier>{60aaa060-5de8-4f07-ba06-03fe2bb854d7}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="ConsoleApplication10.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="sky.cpp">
+      <Filter>Sky</Filter>
+    </ClCompile>
+    <ClCompile Include="User.cpp">
+      <Filter>Managers\User</Filter>
+    </ClCompile>
+    <ClCompile Include="ManagerOnline.cpp">
+      <Filter>Managers\ManagerOnline</Filter>
+    </ClCompile>
+    <ClCompile Include="server.cpp">
+      <Filter>Server</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="sky.h">
+      <Filter>Sky</Filter>
+    </ClInclude>
+    <ClInclude Include="User.h">
+      <Filter>Managers\User</Filter>
+    </ClInclude>
+    <ClInclude Include="ManagerOnline.h">
+      <Filter>Managers\ManagerOnline</Filter>
+    </ClInclude>
+    <ClInclude Include="server.h">
+      <Filter>Server</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
