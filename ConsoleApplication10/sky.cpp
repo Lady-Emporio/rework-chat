@@ -53,6 +53,6 @@ void __log(std::string nameFunc, std::string message)
 		rjust(std::to_string(st.wMilliseconds), 3);
 	auto now = buf.str();
 
-	std::cout << now << " | in: '" << ljust(nameFunc,15,' ') <<"' : '"<< message << "'. "<<std::endl;
+	std::cout << now << " | in: '" << ljust(nameFunc,20,' ') <<"' : '"<< message << "'. "<<std::endl;
 }
 

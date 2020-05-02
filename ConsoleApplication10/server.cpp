@@ -9,76 +9,40 @@
 #include "sky.h"
 #include <vector>
 #include <sstream>
+#include "json.hpp"
+#include <thread>
+#include <mutex>
+
+inline std::mutex manager_mutex;
+
+using json = nlohmann::json;
 
 const std::string ANSWER_UNKNOW = "unknow";
+const std::string ANSWER_NOT_AUTH = "not auth";
+const std::string ANSWER_JSON_PARSE_ERROR = "ANSWER_JSON_PARSE_ERROR";
+const std::string ANSWER_OK = "TWILIGHT";
+const std::string ANSWER_NAME_NOT_FOUND = "ANSWER_NAME_NOT_FOUND";
+const std::string ANSWER_VALUE_NOT_FOUND = "ANSWER_VALUE_NOT_FOUND";
+
+
 void server_forever()
 {
 	initSockets();
 	int server = createSocket();
 	bind(server);
 	listen(server);
-	ManagerOnline * manager = ManagerOnline::getManager();
+	
 
 	while (true) {
 		///////////////////////////////////////////////////////////
 		/////////////////// Start eternal while ///////////////////
 		///////////////////////////////////////////////////////////
-
-		fd_set readfds;
-		FD_ZERO(&readfds);
-		manager->fill_fdset(&readfds);
-		FD_SET(server, &readfds);
-
-
-		struct timeval tv;
-		tv.tv_sec = 10;
-		tv.tv_usec = 500000;
-
-		int result = select(NULL, &readfds, NULL, NULL, &tv);
-		if (0 == result) {
-			log("server_forever", "timeout select.");
-			continue;
+		{
+			//std::lock_guard lock(manager_mutex);
+			next_pass_while(server);
 		}
-		else if (SOCKET_ERROR == result) {
-			fatal("server_forever", "select error." + std::to_string(WSAGetLastError()));
-			continue;
-		}
-		// NEW CONNECTION ######################################
-		if (FD_ISSET(server, &readfds)) {
-			struct sockaddr_storage their_addr;
-			socklen_t addr_size;
-			addr_size = sizeof their_addr;
-			int new_fd = accept(server, (struct sockaddr *)&their_addr, &addr_size);
-			log("server_forever", "new connection on:" + std::to_string(new_fd));
-
-			manager->createOrUpdateUser("unknow guest: " + std::to_string(new_fd), new_fd);
-		}
-		//COME MESSAGE ######################################
 		
-		for (UserPtr user : manager->users) {
-			for (int fd : user->fds) {
-				if (FD_ISSET(fd, &readfds)) {
-					std::string message;
-					GetMessageStatus status= getMessage(fd, &message);
-					switch (status)
-					{
-					case isError:
-						log("server_forever", "!!!!!!!!! something wrong with socket. Close it.");
-						manager->closeFd(user,fd);
-						break;
-					case isOK:
-						workWithMessage(message, user,fd);
-						break;
-					case isCloseMessage:
-						manager->closeFd(user, fd);
-						break;
-					default:
-						break;
-					}
-				}
-			}
-		}
-		manager->makeLateDeleteNow();
+		
 		//////////////////////////////////////////////////////////
 		/////////////////// End eternal while ////////////////////
 		//////////////////////////////////////////////////////////
@@ -182,81 +146,179 @@ bool isCanRead(int s)
 	return true;
 }
 
-std::vector<std::string> parserMessage(std::string message) {
-	std::vector<std::string> messagesList;
-	if (message.size() < 3) {
-		return messagesList;
-	}
-	int pos = 1;
-	for (int i = 1; i != message.size(); ++i) {
-		char now = message[i];
-		if (now == '|') {
-			int addToNewStringLenChar = i - pos;
-			if (addToNewStringLenChar != 0) {
-				std::string lastMessage(message, pos, addToNewStringLenChar);
-				messagesList.push_back(lastMessage);
-			}
-			pos = i + 1;
-		}
-	}
-	return messagesList;
-}
 void workWithMessage(std::string message, UserPtr user, int fd)
 {
+	json json_message;
+	try {
+		json_message = json::parse(message);
+	}
+	catch (...) {
+		answer(fd, ANSWER_JSON_PARSE_ERROR);
+		return;
+	}
+
+
+	std::string jsonName = json_message.value("name", "-1");
+	if (jsonName == "-1") {
+		answer(fd, ANSWER_NAME_NOT_FOUND);
+		return;
+	}
+	std::string jsonValue = json_message.value("value", "-1");
+	if (jsonValue == "-1") {
+		answer(fd, ANSWER_VALUE_NOT_FOUND);
+		return;
+	}
+
+	if (!(*user).isAuth && jsonName != "auth") {
+		answer(fd, ANSWER_NOT_AUTH);
+		return;
+	}
+
+	if ("auth" == jsonName) {
+		ManagerOnline::getManager()->authLate(user,  fd, jsonValue);
+		return;
+	}
 	
-	//split separator |
-	// text can not have |
-	/*
-	"|text|"   = text
-	"|text1|text2|"   = [text1,text2]
-	"text1|text2"   = unknow
-	"text1|"   = unknow
-	"|text2"   = unknow
-	*/
-
-	/*
-	"|4444|"=[4444]
-	"|4||5|"=[4,5]
-	"|4|5|7|"=[4,5,7]
-	"||333||"=333
-	"||4||"=[4]
-	"|1||"=[1]
-	"||||"=[]
-	"||"=[]
-	"|||"=[]
-	*/
-	if (message.size() < 2) {
-		error("workWithMessage", "ANSWER_UNKNOW on:"+ message);
-		answer(fd, ANSWER_UNKNOW);
+	if ("message" == jsonName) {
+		std::string who = jsonValue;
+		std::string alertAboutNewData = "data";
+		ManagerOnline::getManager()->sendUserByName(who, alertAboutNewData);
 		return;
 	}
-	if ('|' != message[0]) {
-		error("workWithMessage", "ANSWER_UNKNOW on:" + message);
-		answer(fd, ANSWER_UNKNOW);
+	if ("ping" == jsonName) {
+		answer(fd, "pong");
 		return;
 	}
-
-	if ('|' != message[message.size() - 1]) {
-		error("workWithMessage", "ANSWER_UNKNOW on:" + message);
-		answer(fd, ANSWER_UNKNOW);
-		return;
-	}
-	std::vector<std::string> messagesList = parserMessage(message);
-
-	{//+Delail log
-		bool isDetail = true;
-		if (isDetail) {
-			log("workWithMessage", "Come: '" +std::to_string(messagesList.size())+ "' messages:.");
-			for (int i = 0; i != messagesList.size(); ++i) {
-				log("workWithMessage", "Message: '" + std::to_string(i) + "' :"+ messagesList[i]);
-			}
-		}
-	}// -Delail log
-
-
-
+	answer(fd, ANSWER_UNKNOW);
 }
+//Заголовок фиксированной длины
+//Данные
 
+//Оповещение фиксированной длины
 void answer(int fd, std::string message)
 {
+	sendall(fd, message);
+}
+
+bool sendall(int fd, std::string message)
+{
+	const char * buf = message.data();
+	int len = message.size();
+	int total = 0;           // сколько байт мы послали 
+	int bytesleft = len;	//// сколько байт осталось послать 
+	int n=-1;
+	
+	while (total < len) {
+		n = send(fd, buf + total, bytesleft, 0);
+		if (n == -1) { 
+			//+ handling error. /////////////////////////////
+			if (0 != total) {
+				error("sendall", "Can not send message. !!!!!! ALREADY SEND something!!!!!!. SEND:'"+std::to_string(total)+"' bytes.");
+			}
+			else {
+				error("sendall", "Can not send message. Nothing not send. Zero send.");
+			}
+			break; 
+			//- handling error. /////////////////////////////
+		}
+		total += n;
+		bytesleft -= n;
+	}
+
+	return (0 == n);
+}
+
+bool sendall(int fd, char * buf, int len)
+{
+	int total = 0;           // сколько байт мы послали 
+	int bytesleft = len;	//// сколько байт осталось послать 
+	int n = -1;
+
+	while (total < len) {
+		n = send(fd, buf + total, bytesleft, 0);
+		if (n == -1) {
+			//+ handling error. /////////////////////////////
+			if (0 != total) {
+				error("sendall", "Can not send message. !!!!!! ALREADY SEND something!!!!!!. SEND:'" + std::to_string(total) + "' bytes.");
+			}
+			else {
+				error("sendall", "Can not send message. Nothing not send. Zero send.");
+			}
+			break;
+			//- handling error. /////////////////////////////
+		}
+		total += n;
+		bytesleft -= n;
+	}
+
+	return (0 == n);
+}
+
+void run_daemon_server()
+{
+	std::thread thr(server_forever);
+	thr.detach();
+}
+
+void next_pass_while(int server )
+{
+	ManagerOnline * manager = ManagerOnline::getManager();
+
+	fd_set readfds;
+	FD_ZERO(&readfds);
+	manager->fill_fdset(&readfds);
+	FD_SET(server, &readfds);
+
+
+	struct timeval tv;
+	tv.tv_sec = 10;
+	tv.tv_usec = 500000;
+
+	int result = select(NULL, &readfds, NULL, NULL, &tv);
+	if (0 == result) {
+		log("server_forever", "timeout select.");
+		manager->callLateFunc();
+		return;
+	}
+	else if (SOCKET_ERROR == result) {
+		fatal("server_forever", "select error." + std::to_string(WSAGetLastError()));
+		return;
+	}
+	// NEW CONNECTION ######################################
+	if (FD_ISSET(server, &readfds)) {
+		struct sockaddr_storage their_addr;
+		socklen_t addr_size;
+		addr_size = sizeof their_addr;
+		int new_fd = accept(server, (struct sockaddr *)&their_addr, &addr_size);
+		log("server_forever", "new connection on:" + std::to_string(new_fd));
+
+		manager->createOrUpdateUser("unknow guest: " + std::to_string(new_fd), new_fd, false);
+	}
+	//COME MESSAGE ######################################
+
+	for (UserPtr user : manager->users) {
+		for (int fd : user->fds) {
+			if (FD_ISSET(fd, &readfds)) {
+				std::string message;
+				GetMessageStatus status = getMessage(fd, &message);
+				switch (status)
+				{
+				case isError:
+					log("server_forever", "!!!!!!!!! something wrong with socket. Close it.");
+					manager->closeFd(user, fd, true);
+					break;
+				case isOK:
+					workWithMessage(message, user, fd);
+					break;
+				case isCloseMessage:
+					manager->closeFd(user, fd, true);
+					break;
+				default:
+					break;
+				}
+			}
+		}
+	}
+
+	manager->callLateFunc();
 }

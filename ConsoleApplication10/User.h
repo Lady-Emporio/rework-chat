@@ -20,7 +20,7 @@ public:
 
 
 	void addFD(int fd);
-	void deleteFd(int fd);
+	void deleteFd(int fd, bool isNeedClose);
 	void updateTime();
 	void fillFdset(fd_set *x);
 	static UserPtr create(std::string name, int fd);

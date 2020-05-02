@@ -1,6 +1,6 @@
 #include "ManagerOnline.h"
 #include "sky.h"
-
+#include "server.h"
 
 ManagerOnline::ManagerOnline()
 {
@@ -24,7 +24,7 @@ void ManagerOnline::fill_fdset(fd_set * x)
 	}
 }
 
-void ManagerOnline::createOrUpdateUser(std::string name, int addingFd)
+void ManagerOnline::createOrUpdateUser(std::string name, int addingFd,bool isAuth)
 {
 	UserPtr u = nullptr;
 	bool isFound = false;
@@ -32,15 +32,21 @@ void ManagerOnline::createOrUpdateUser(std::string name, int addingFd)
 		u = users[i];
 		if ((*u).name == name) {
 			(*u).addFD(addingFd);
+			if (isAuth) {
+				(*u).isAuth = true;
+			}
 			isFound = true;
 		}
 	}
 
 	if (!isFound) {
+		log("MO::createOrUpdateUser", "Create user: '"+ name +"', with fd: '"+std::to_string(addingFd) +"'.");
 		u=User::create(name, addingFd);
+		(*u).isAuth = isAuth;
+		users.push_back(u);
 	}
 
-	users.push_back(u);
+	
 	
 }
 
@@ -49,27 +55,96 @@ void ManagerOnline::deleteUser(UserPtr user)
 	for (int i = 0; i != users.size(); ++i) {
 		UserPtr l_user = users[i];
 		if (l_user == user) {//Если объект в одной и той же памяти
-			log("ManagerOnline::deleteUser", "found and del user:"+ (*user).name);
+			log("MO::deleteUser", "found and del user: '"+ (*user).name+"'.");
 			users.erase(users.begin() + i);
 			return;
 		}
 	}
-	error("ManagerOnline::deleteUser", "call del user but not found him:" + (*user).name);
+	error("MO::deleteUser", "call del user but not found him: '" + (*user).name + "'.");
 }
 
-void ManagerOnline::closeFd(UserPtr user, int fd)
+void ManagerOnline::closeFd(UserPtr user, int fd, bool isNeedClose)
 {
-	user->deleteFd(fd);
+	user->deleteFd(fd, isNeedClose);
 	if (user->isDisconnect()) {
+		log("MO::closeFd", "User not have fd. Mark to del user:" + (*user).name);
 		needDelUser.push_back(user);
 	}
 }
 
-void ManagerOnline::makeLateDeleteNow()
+void ManagerOnline::deleteNow()
 {
+	int logMaxDel = needDelUser.size();
+	int logdelCount = 0;
 	while (!needDelUser.empty()) {
 		UserPtr user = needDelUser[0];
-		deleteUser(user);
+		if ((*user).isDisconnect()) {
+			deleteUser(user);
+			++logdelCount;
+		}
 		needDelUser.erase(needDelUser.begin());
 	}
+	log("MO::deleteNow", "Check: '" + std::to_string(logMaxDel) + "'. Del: '" + std::to_string(logdelCount) + "' . Not del: '" + std::to_string(logMaxDel- logdelCount) + "'.");
+}
+
+void ManagerOnline::authLate(UserPtr olduser, int fd, std::string newName)
+{
+	authUserLate usLate;
+	usLate.olduser = olduser;
+	usLate.fd = fd;
+	usLate.newName = newName;
+
+	needAuthUser.push_back(usLate);
+}
+
+void ManagerOnline::authNow()
+{
+	while (!needAuthUser.empty()) {
+		authUserLate u= needAuthUser[0];
+		needAuthUser.erase(needAuthUser.begin());
+		closeFd(u.olduser, u.fd, false);
+		createOrUpdateUser(u.newName,u.fd,true);
+		sendLate(u.fd, "Wellcome"+ u.newName);
+	}
+}
+
+void ManagerOnline::sendLate(int fd, std::string message)
+{
+	sendLateMessage u;
+	u.fd = fd;
+	u.message = message;
+	needSendLate.push_back(u);
+}
+
+void ManagerOnline::sendLateAllNow()
+{
+
+	while (!needSendLate.empty()) {
+		sendLateMessage u = needSendLate[0];
+		needSendLate.erase(needSendLate.begin());
+		answer(u.fd, u.message);
+	}
+}
+
+bool ManagerOnline::sendUserByName(std::string name, std::string message)
+{
+	bool isSend = false;
+	for (int i = 0; i != users.size(); ++i) {
+		UserPtr user = users[i];
+		if ((*user).name == name) {
+			for (int i = 0; i != (*user).fds.size(); ++i) {
+				int fd = (*user).fds[i];
+				answer(fd, message);
+				isSend = true;
+			}
+		}
+	}
+	return isSend;
+}
+
+void ManagerOnline::callLateFunc()
+{
+	deleteNow();
+	authNow();
+	sendLateAllNow();// always must be in end;
 }
