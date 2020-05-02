@@ -18,6 +18,7 @@ public:
 	sendLateMessage(){}
 	int fd;
 	std::string message;
+	UserPtr user;
 };
 
 class ManagerOnline
@@ -32,17 +33,19 @@ public:
 	std::vector< UserPtr>users;
 	static ManagerOnline * getManager();
 	void fill_fdset(fd_set *x);
-	void createOrUpdateUser(std::string name,int addingFd, bool isAuth);
+	UserPtr createOrUpdateUser(std::string name,int addingFd, bool isAuth);
 	void deleteUser(UserPtr user);
 
 	void closeFd(UserPtr user,int fd, bool isNeedClose);
 	void deleteNow();
 	void authLate(UserPtr olduser, int fd, std::string newName);
 	void authNow();
-	void sendLate(int fd, std::string message);
+	void sendLate(UserPtr user,int fd, std::string message);
 	void sendLateAllNow();
 
 	bool sendUserByName(std::string name,std::string message);
 	void callLateFunc();
+
+	void selectError();
 };
 

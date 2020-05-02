@@ -153,26 +153,27 @@ void workWithMessage(std::string message, UserPtr user, int fd)
 		json_message = json::parse(message);
 	}
 	catch (...) {
-		answer(fd, ANSWER_JSON_PARSE_ERROR);
+		answer(user,fd, ANSWER_JSON_PARSE_ERROR);
 		return;
 	}
 
 
 	std::string jsonName = json_message.value("name", "-1");
 	if (jsonName == "-1") {
-		answer(fd, ANSWER_NAME_NOT_FOUND);
+		answer(user, fd, ANSWER_NAME_NOT_FOUND);
 		return;
 	}
 	std::string jsonValue = json_message.value("value", "-1");
 	if (jsonValue == "-1") {
-		answer(fd, ANSWER_VALUE_NOT_FOUND);
+		answer(user, fd, ANSWER_VALUE_NOT_FOUND);
 		return;
 	}
 
 	if (!(*user).isAuth && jsonName != "auth") {
-		answer(fd, ANSWER_NOT_AUTH);
+		answer(user, fd, ANSWER_NOT_AUTH);
 		return;
 	}
+	user->updateTime(fd);
 
 	if ("auth" == jsonName) {
 		ManagerOnline::getManager()->authLate(user,  fd, jsonValue);
@@ -186,18 +187,18 @@ void workWithMessage(std::string message, UserPtr user, int fd)
 		return;
 	}
 	if ("ping" == jsonName) {
-		answer(fd, "pong");
+		answer(user, fd, "pong");
 		return;
 	}
-	answer(fd, ANSWER_UNKNOW);
+	answer(user, fd, ANSWER_UNKNOW);
 }
-//«аголовок фиксированной длины
-//ƒанные
 
-//ќповещение фиксированной длины
-void answer(int fd, std::string message)
+void answer(UserPtr user, int fd, std::string message)
 {
-	sendall(fd, message);
+	if (!sendall(fd, message)) {
+		error("answer", "Can not send user: '" + user->name + "' in fd:' " + std::to_string(fd) + "'.");
+		ManagerOnline::getManager()->closeFd(user,fd,true);
+	}
 }
 
 bool sendall(int fd, std::string message)
@@ -225,33 +226,7 @@ bool sendall(int fd, std::string message)
 		bytesleft -= n;
 	}
 
-	return (0 == n);
-}
-
-bool sendall(int fd, char * buf, int len)
-{
-	int total = 0;           // сколько байт мы послали 
-	int bytesleft = len;	//// сколько байт осталось послать 
-	int n = -1;
-
-	while (total < len) {
-		n = send(fd, buf + total, bytesleft, 0);
-		if (n == -1) {
-			//+ handling error. /////////////////////////////
-			if (0 != total) {
-				error("sendall", "Can not send message. !!!!!! ALREADY SEND something!!!!!!. SEND:'" + std::to_string(total) + "' bytes.");
-			}
-			else {
-				error("sendall", "Can not send message. Nothing not send. Zero send.");
-			}
-			break;
-			//- handling error. /////////////////////////////
-		}
-		total += n;
-		bytesleft -= n;
-	}
-
-	return (0 == n);
+	return (total== len);
 }
 
 void run_daemon_server()
@@ -282,6 +257,7 @@ void next_pass_while(int server )
 	}
 	else if (SOCKET_ERROR == result) {
 		fatal("server_forever", "select error." + std::to_string(WSAGetLastError()));
+		manager->selectError();
 		return;
 	}
 	// NEW CONNECTION ######################################

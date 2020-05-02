@@ -24,7 +24,7 @@ void ManagerOnline::fill_fdset(fd_set * x)
 	}
 }
 
-void ManagerOnline::createOrUpdateUser(std::string name, int addingFd,bool isAuth)
+UserPtr ManagerOnline::createOrUpdateUser(std::string name, int addingFd,bool isAuth)
 {
 	UserPtr u = nullptr;
 	bool isFound = false;
@@ -46,7 +46,7 @@ void ManagerOnline::createOrUpdateUser(std::string name, int addingFd,bool isAut
 		users.push_back(u);
 	}
 
-	
+	return u;
 	
 }
 
@@ -103,16 +103,17 @@ void ManagerOnline::authNow()
 		authUserLate u= needAuthUser[0];
 		needAuthUser.erase(needAuthUser.begin());
 		closeFd(u.olduser, u.fd, false);
-		createOrUpdateUser(u.newName,u.fd,true);
-		sendLate(u.fd, "Wellcome"+ u.newName);
+		UserPtr new_user=createOrUpdateUser(u.newName,u.fd,true);
+		sendLate(new_user,u.fd, "Wellcome"+ u.newName);
 	}
 }
 
-void ManagerOnline::sendLate(int fd, std::string message)
+void ManagerOnline::sendLate(UserPtr user,int fd, std::string message)
 {
 	sendLateMessage u;
 	u.fd = fd;
 	u.message = message;
+	u.user = user;
 	needSendLate.push_back(u);
 }
 
@@ -122,7 +123,7 @@ void ManagerOnline::sendLateAllNow()
 	while (!needSendLate.empty()) {
 		sendLateMessage u = needSendLate[0];
 		needSendLate.erase(needSendLate.begin());
-		answer(u.fd, u.message);
+		answer(u.user,u.fd, u.message);
 	}
 }
 
@@ -134,7 +135,7 @@ bool ManagerOnline::sendUserByName(std::string name, std::string message)
 		if ((*user).name == name) {
 			for (int i = 0; i != (*user).fds.size(); ++i) {
 				int fd = (*user).fds[i];
-				answer(fd, message);
+				answer(user,fd, message);
 				isSend = true;
 			}
 		}
@@ -147,4 +148,21 @@ void ManagerOnline::callLateFunc()
 	deleteNow();
 	authNow();
 	sendLateAllNow();// always must be in end;
+}
+
+void ManagerOnline::selectError()
+{
+	bool isSomethingFound;
+	for (UserPtr user : users) {
+		for (int fd : user->fds) {
+			if (SOCKET_ERROR == fd) {
+				isSomethingFound = true;
+				log("MO::selectError", "found error socket in user: '"+user->name+"'. fd: "+std::to_string(fd)+"'.");
+				closeFd(user, fd, true);
+			}
+		}
+	}
+	if (!isSomethingFound) {
+		error("MO::selectError", "selectError nothing not found. All must work.");
+	}
 }

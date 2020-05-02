@@ -14,7 +14,6 @@ inline std::mutex manager_mutex;
 
 int main()
 {
-
 	sf::RenderWindow  window(sf::VideoMode(800, 600), "My window");
 	window.setFramerateLimit(10);
 
@@ -57,13 +56,23 @@ int main()
 				text.setPosition(10, y);
 				window.draw(text);
 				y += 30;
-				for (int fd : user->fds) {
-					sf::Text text(std::to_string(fd), font);
-					text.setCharacterSize(30);
+
+				int fontSize = 30;
+				for (FD fd : user->fds) {
+					sf::Text text(std::to_string(fd.fd), font);
+					text.setCharacterSize(fontSize);
 					text.setStyle(sf::Text::Bold);
 					text.setFillColor(sf::Color::Red);
 					text.setPosition(30, y);
 					window.draw(text);
+
+
+					sf::Text text2(fd.getLastTimeStr(), font);
+					text2.setCharacterSize(fontSize);
+					text2.setStyle(sf::Text::Bold);
+					text2.setFillColor(sf::Color::Red);
+					text2.setPosition(30+(fontSize*4), y);
+					window.draw(text2);
 					y += 30;
 				}
 			}
