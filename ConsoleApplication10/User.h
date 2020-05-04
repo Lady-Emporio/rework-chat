@@ -25,6 +25,7 @@ class User
 {
 public:
 	std::vector<FD> fds;
+	std::vector<FD> ComeFds;
 	User();
 	~User();
 	bool isAuth;
@@ -36,7 +37,8 @@ public:
 	void deleteFd(int fd, bool isNeedClose);
 	void updateTime(int fd);
 	void fillFdset(fd_set *x);
-	static UserPtr create(std::string name, int fd);
+	static UserPtr create(std::string name, int fd,bool isCome);
 	bool isDisconnect();
+	void addComeFD(int fd);
 };
 

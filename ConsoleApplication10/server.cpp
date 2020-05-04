@@ -23,6 +23,8 @@ const std::string ANSWER_JSON_PARSE_ERROR = "ANSWER_JSON_PARSE_ERROR";
 const std::string ANSWER_OK = "TWILIGHT";
 const std::string ANSWER_NAME_NOT_FOUND = "ANSWER_NAME_NOT_FOUND";
 const std::string ANSWER_VALUE_NOT_FOUND = "ANSWER_VALUE_NOT_FOUND";
+const std::string ANSWER_EXTRA_NOT_FOUND = "ANSWER_EXTRA_NOT_FOUND";
+const std::string ANSWER_EXTRA_ERROR = "ANSWER_EXTRA_ERROR";
 
 
 void server_forever()
@@ -168,7 +170,11 @@ void workWithMessage(std::string message, UserPtr user, int fd)
 		answer(user, fd, ANSWER_VALUE_NOT_FOUND);
 		return;
 	}
-
+	std::string extraValue = json_message.value("extra", "-1");
+	if (extraValue == "-1") {
+		answer(user, fd, ANSWER_EXTRA_NOT_FOUND);
+		return;
+	}
 	if (!(*user).isAuth && jsonName != "auth") {
 		answer(user, fd, ANSWER_NOT_AUTH);
 		return;
@@ -176,7 +182,18 @@ void workWithMessage(std::string message, UserPtr user, int fd)
 	user->updateTime(fd);
 
 	if ("auth" == jsonName) {
-		ManagerOnline::getManager()->authLate(user,  fd, jsonValue);
+		bool isCome = false;
+		if ("false" == extraValue) {
+			isCome = false;
+		}
+		else if ("true" == extraValue) {
+			isCome = true;
+		}
+		else {
+			answer(user, fd, ANSWER_EXTRA_ERROR);
+			return;
+		}
+		ManagerOnline::getManager()->authLate(user,  fd, jsonValue, isCome);
 		return;
 	}
 	
@@ -268,7 +285,7 @@ void next_pass_while(int server )
 		int new_fd = accept(server, (struct sockaddr *)&their_addr, &addr_size);
 		log("server_forever", "new connection on:" + std::to_string(new_fd));
 
-		manager->createOrUpdateUser("unknow guest: " + std::to_string(new_fd), new_fd, false);
+		manager->createOrUpdateUser("unknow guest: " + std::to_string(new_fd), new_fd, false, false);
 	}
 	//COME MESSAGE ######################################
 

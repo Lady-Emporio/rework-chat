@@ -24,14 +24,20 @@ void ManagerOnline::fill_fdset(fd_set * x)
 	}
 }
 
-UserPtr ManagerOnline::createOrUpdateUser(std::string name, int addingFd,bool isAuth)
+UserPtr ManagerOnline::createOrUpdateUser(std::string name, int addingFd,bool isAuth, bool isComeFd)
 {
 	UserPtr u = nullptr;
 	bool isFound = false;
 	for (int i = 0; i != users.size(); ++i) {
 		u = users[i];
 		if ((*u).name == name) {
-			(*u).addFD(addingFd);
+			if (isComeFd) {
+				u->addComeFD(addingFd);
+			}
+			else {
+				(*u).addFD(addingFd);
+			}
+			
 			if (isAuth) {
 				(*u).isAuth = true;
 			}
@@ -41,7 +47,7 @@ UserPtr ManagerOnline::createOrUpdateUser(std::string name, int addingFd,bool is
 
 	if (!isFound) {
 		log("MO::createOrUpdateUser", "Create user: '"+ name +"', with fd: '"+std::to_string(addingFd) +"'.");
-		u=User::create(name, addingFd);
+		u=User::create(name, addingFd, isComeFd);
 		(*u).isAuth = isAuth;
 		users.push_back(u);
 	}
@@ -87,13 +93,13 @@ void ManagerOnline::deleteNow()
 	log("MO::deleteNow", "Check: '" + std::to_string(logMaxDel) + "'. Del: '" + std::to_string(logdelCount) + "' . Not del: '" + std::to_string(logMaxDel- logdelCount) + "'.");
 }
 
-void ManagerOnline::authLate(UserPtr olduser, int fd, std::string newName)
+void ManagerOnline::authLate(UserPtr olduser, int fd, std::string newName,bool isCome)
 {
 	authUserLate usLate;
 	usLate.olduser = olduser;
 	usLate.fd = fd;
 	usLate.newName = newName;
-
+	usLate.isCome = isCome;
 	needAuthUser.push_back(usLate);
 }
 
@@ -103,7 +109,7 @@ void ManagerOnline::authNow()
 		authUserLate u= needAuthUser[0];
 		needAuthUser.erase(needAuthUser.begin());
 		closeFd(u.olduser, u.fd, false);
-		UserPtr new_user=createOrUpdateUser(u.newName,u.fd,true);
+		UserPtr new_user=createOrUpdateUser(u.newName,u.fd,true,u.isCome);
 		sendLate(new_user,u.fd, "Wellcome"+ u.newName);
 	}
 }

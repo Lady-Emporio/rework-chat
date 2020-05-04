@@ -19,7 +19,7 @@ User::~User()
 
 void User::addFD(int fd)
 {
-	log("User::addFD", "user: '" + name + "' add self fd: '" + std::to_string(fd) + "'.");
+	log("User::addFD", "user: '" + name + "' add self INCOME fd: '" + std::to_string(fd) + "'.");
 	fds.push_back(fd);
 }
 
@@ -31,12 +31,28 @@ void User::deleteFd(int fd, bool isNeedClose)
 
 			if (isNeedClose) {
 				closesocket(fd);
-				log("User::deleteFd", "close and del fd: '" + std::to_string(fd) + "'. in user: '" + name + "'.");
+				log("User::deleteFd", "close and del INCOME fd: '" + std::to_string(fd) + "'. in user: '" + name + "'.");
 			}
 			else {
-				log("User::deleteFd", "only del fd: '" + std::to_string(fd) + "'. in user: '" + name + "'.");
+				log("User::deleteFd", "only del INCOME fd: '" + std::to_string(fd) + "'. in user: '" + name + "'.");
 			}
 			fds.erase(fds.begin() + i);
+			return;
+		}
+	}
+
+	for (int i = 0; i != ComeFds.size(); ++i) {
+		int local_fd = ComeFds[i];
+		if (local_fd == fd) {
+
+			if (isNeedClose) {
+				closesocket(fd);
+				log("User::deleteFd", "close and del COME fd: '" + std::to_string(fd) + "'. in user: '" + name + "'.");
+			}
+			else {
+				log("User::deleteFd", "only del COME fd: '" + std::to_string(fd) + "'. in user: '" + name + "'.");
+			}
+			ComeFds.erase(ComeFds.begin() + i);
 			return;
 		}
 	}
@@ -51,6 +67,13 @@ void User::updateTime(int fd)
 			return;
 		}
 	}
+
+	for (int i = 0; i != ComeFds.size(); ++i) {
+		if (fd == ComeFds[i].fd) {
+			ComeFds[i]._create = std::chrono::system_clock::now();
+			return;
+		}
+	}
 }
 
 void User::fillFdset(fd_set * x)
@@ -58,13 +81,22 @@ void User::fillFdset(fd_set * x)
 	for (int i = 0; i != fds.size(); ++i) {
 		FD_SET(fds[i], x);
 	}
+	for (int i = 0; i != ComeFds.size(); ++i) {
+		FD_SET(ComeFds[i], x);
+	}
 }
 
-UserPtr User::create(std::string name, int fd)
+UserPtr User::create(std::string name, int fd, bool isCome)
 {
 	UserPtr u = std::make_shared<User>();
 	(*u).name = name;
-	(*u).addFD(fd);
+	if (isCome) {
+		u->addComeFD(fd);
+	}
+	else {
+		(*u).addFD(fd);
+	}
+	
 	return u;
 }
 
@@ -74,6 +106,12 @@ bool User::isDisconnect()
 		return true;
 	}
 	return false;
+}
+
+void User::addComeFD(int fd)
+{
+	log("User::addFD", "user: '" + name + "' add self COME fd: '" + std::to_string(fd) + "'.");
+	ComeFds.push_back(fd);
 }
 
 FD::FD(int fd) :fd(fd)

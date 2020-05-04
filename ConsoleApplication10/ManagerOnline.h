@@ -7,10 +7,11 @@
 
 class authUserLate {
 public:
-	authUserLate() {}
+	authUserLate():isCome(false){}
 	UserPtr olduser;
 	int fd;
 	std::string newName;
+	bool isCome;
 };
 
 class sendLateMessage {
@@ -33,12 +34,12 @@ public:
 	std::vector< UserPtr>users;
 	static ManagerOnline * getManager();
 	void fill_fdset(fd_set *x);
-	UserPtr createOrUpdateUser(std::string name,int addingFd, bool isAuth);
+	UserPtr createOrUpdateUser(std::string name,int addingFd, bool isAuth,bool isComeFd);
 	void deleteUser(UserPtr user);
 
 	void closeFd(UserPtr user,int fd, bool isNeedClose);
 	void deleteNow();
-	void authLate(UserPtr olduser, int fd, std::string newName);
+	void authLate(UserPtr olduser, int fd, std::string newName,bool isCome);
 	void authNow();
 	void sendLate(UserPtr user,int fd, std::string message);
 	void sendLateAllNow();
